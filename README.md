@@ -1,7 +1,7 @@
 # Lasty
 
-Web-app voor iPhone: de gezamenlijke vaste lasten uit Henks Lasty-app.
+Web-app voor iPhone: Lasty, de app voor vaste lasten van Henk en Melanie.
 
-In deze repo staat alleen de app zelf. Bedragen, IBAN's en andere gegevens staan hier niet in: ze zitten in de link die Henk via WhatsApp stuurt, achter het `#`-teken, en die komt nooit op deze server terecht.
+In deze repo staat alleen de app zelf, zonder gegevens. De gezamenlijke kosten synchroniseren via lasty-sync.henkherrebout.workers.dev. Ze worden op de telefoon versleuteld (AES-256-GCM), met een sleutel die alleen in de koppellink staat. Eigen kosten en inkomsten verlaten de telefoon niet.
 
 Adres: https://henkieh2000.github.io/Lasty/

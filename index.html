@@ -91,8 +91,12 @@ h2 a{font-size:13px;color:var(--coral);font-weight:700;text-decoration:none}
 .ico{width:42px;height:42px;border-radius:13px;background:var(--soft2);display:grid;place-items:center;flex:none}
 .ico .i{width:20px;height:20px}
 .bank{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex:none;color:#fff;font-weight:800;font-size:11px;letter-spacing:.2px}
-.bank.ing{background:#FF6200}.bank.rabo{background:#000D99;color:#FF7F00;font-size:15px}.bank.revolut{background:#0B0B0D;font-size:16px}.bank.other{background:var(--soft);color:var(--ink)}
-.dark .bank.revolut{background:#fff;color:#0B0B0D}
+.bank.other{background:var(--soft);color:var(--ink)}
+.bank.img{background:#fff;overflow:hidden;padding:0}.bank.img img{width:100%;height:100%;object-fit:cover;display:block}
+.bankgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.bopt{border:0;background:var(--card);border-radius:16px;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--ink2);font-size:11px;font-weight:600;box-shadow:var(--shadow)}
+.bopt .bank{width:36px;height:36px;border-radius:11px}
+.bopt.on{background:var(--sel);color:var(--selink)}
 .m .eur{color:var(--coral);font-size:.78em;margin-right:1px}
 .gcard .m .eur{color:#fff}
 .pos{color:var(--green)}
@@ -242,7 +246,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
 .ob .field{background:#1A1A1E;box-shadow:none}.ob .field input{color:#fff}.ob .field label{color:#8E8E98}
 .ob .grow{flex:1}
 .ob .skip{background:transparent;border:0;color:#A9A9B2;font-weight:600;font-size:15px;padding:16px;width:100%}
-.ob .bank.other{background:#26262B;color:#fff}.ob .bank.revolut{background:#fff;color:#0B0B0D}
+.ob .bank.other{background:#26262B;color:#fff}
 .steps{display:flex;gap:6px;margin:6px 0 8px}.steps i{height:4px;flex:1;border-radius:9px;background:#2A2A2F}.steps i.on{background:var(--grad)}
 .acchead{display:flex;align-items:center;gap:10px;margin:14px 0 8px;font-weight:700}
 </style>
@@ -257,8 +261,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
 'use strict';
 /* ---------- bridge ---------- */
 const NB = window.Android || null;
-const MODE = NB || /[?&]mode=owner/.test(location.search) ? 'owner' : 'partner';
-const SKEY = MODE==='owner' ? 'lasty' : 'lasty-partner';
+const WEB = !NB;
+const MODE = 'owner';
+const SKEY = NB ? 'lasty' : 'lasty-web';
+const SYNC_URL = 'https://lasty-sync.henkherrebout.workers.dev';
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 const STANDALONE = navigator.standalone===true || matchMedia('(display-mode: standalone)').matches;
 const bridge = {
@@ -277,8 +283,12 @@ const bridge = {
     if(NB) return NB.exportBackup(json, name);
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download=name; a.click();
   },
-  importBackup(){ if(NB) NB.importBackup(); },
-  version(){ try{ return NB ? NB.version() : '1.1' }catch(e){ return '' } },
+  importBackup(){
+    if(NB) return NB.importBackup();
+    const i=document.createElement('input'); i.type='file'; i.accept='application/json,.json';
+    i.onchange=()=>{ const f=i.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>window.onImport(String(r.result)); r.readAsText(f) }; i.click();
+  },
+  version(){ try{ return NB ? NB.version() : '1.2' }catch(e){ return '' } },
   sharePending(on){ if(NB) try{ NB.setSharePending(!!on) }catch(e){} },
   takeAction(){ try{ return NB && NB.takeAction ? NB.takeAction() : '' }catch(e){ return '' } }
 };
@@ -369,13 +379,18 @@ function catIcon(cat){
   if(c.includes('boodschap')||c.includes('optioneel')||c.includes('eten')) return 'cart';
   return 'tag';
 }
-function bankBadge(b, name){
-  if(b==='ing') return '<div class="bank ing">ING</div>';
-  if(b==='rabo') return '<div class="bank rabo">R</div>';
-  if(b==='revolut') return '<div class="bank revolut">R</div>';
+// Logo's van Revolut, bunq, N26 en Wise: simple-icons (CC0). Andere banken: merkkleur + afkorting, of een eigen logo per rekening.
+const BANK_SVG = {"revolut": "M20.9133 6.9566C20.9133 3.1208 17.7898 0 13.9503 0H2.424v3.8605h10.9782c1.7376 0 3.177 1.3651 3.2087 3.043.016.84-.2994 1.633-.8878 2.2324-.5886.5998-1.375.9303-2.2144.9303H9.2322a.2756.2756 0 0 0-.2755.2752v3.431c0 .0585.018.1142.052.1612L16.2646 24h5.3114l-7.2727-10.094c3.6625-.1838 6.61-3.2612 6.61-6.9494zM6.8943 5.9229H2.424V24h4.4704z", "bunq": "M16.414 14.62h1.103v-2.896a2.484 2.484 0 0 0-2.483-2.483 2.484 2.484 0 0 0-2.482 2.483v2.897h1.103v-2.897c0-.837.618-1.517 1.38-1.517.76 0 1.379.68 1.379 1.517zm-6.07-5.24h1.104v2.896a2.484 2.484 0 0 1-2.482 2.483 2.484 2.484 0 0 1-2.483-2.483V9.379h1.103v2.897c0 .837.618 1.517 1.38 1.517.76 0 1.379-.68 1.379-1.517zM0 7.034V12c0 .046.001.093.004.139H0v2.482h.965l.055-.48A2.76 2.76 0 0 0 5.518 12a2.76 2.76 0 0 0-4.414-2.208V7.035zm2.69 3.172c.951 0 1.724.803 1.724 1.793 0 .99-.773 1.793-1.725 1.793-.951 0-1.724-.803-1.724-1.793 0-.99.773-1.793 1.724-1.793zm18.552-.965A2.76 2.76 0 0 0 18.482 12a2.76 2.76 0 0 0 4.414 2.207v2.758H24V12a2.15 2.15 0 0 0-.004-.139H24V9.38h-.965l-.055.48a2.741 2.741 0 0 0-1.738-.617zm.069.965c.951 0 1.724.803 1.724 1.793 0 .99-.773 1.793-1.724 1.793-.952 0-1.725-.803-1.725-1.793 0-.99.773-1.793 1.725-1.793Z", "n26": "M0 3.803v1.195h7.436V3.803H0zM12.69 7.29c-2.034 0-3.038 1.252-3.038 2.684 0 .234.027.468.092.728l1.393.135a3.697 3.697 0 0 1-.09-.793c0-1.072.71-1.586 1.598-1.586.866 0 1.507.485 1.507 1.652 0 1.186-.58 1.995-1.464 2.88-.925.923-2.4 2.027-3.112 2.534v1.092h6.135v-1.195h-4.168c.695-.48 1.69-1.279 2.133-1.72.502-.503 1.931-1.794 1.931-3.636 0-1.903-1.24-2.775-2.918-2.775zm8.34 0c-1.976 0-3.454 1.517-3.454 4.916 0 3.017 1.233 4.508 3.356 4.508 1.754 0 3.068-1.198 3.068-3.172 0-1.542-.823-3.066-2.793-3.066-1.1 0-1.884.51-2.281 1.263 0-1.78.62-3.33 2.094-3.33.937 0 1.309.538 1.507 1.422l1.366-.271c-.321-1.527-1.292-2.27-2.864-2.27zM.075 7.389v9.228h1.33v-6.312c0-.56-.013-.898-.039-1.223h.026c.136.372.298.699.539 1.123l3.732 6.412h1.69V7.39H6.04v6.31c0 .56.013.898.04 1.223h-.028a7.252 7.252 0 0 0-.537-1.123L1.783 7.389H.076zm20.817 4.185c1.114 0 1.744.822 1.744 1.992 0 1.256-.717 2.034-1.701 2.034-1.09 0-1.843-1.001-1.973-2.329.33-1.133 1.063-1.697 1.93-1.697zM0 19.008v1.19h7.436v-1.19H0z", "wise": "M6.488 7.469 0 15.05h11.585l1.301-3.576H7.922l3.033-3.507.01-.092L8.993 4.48h8.873l-6.878 18.925h4.706L24 .595H2.543l3.945 6.874Z"};
+const BANK_STYLE = {ing:['#FF6200','#fff','ING'], rabo:['#000D99','#FF7F00','R'], abn:['#00857A','#F3C000','ABN'], sns:['#5A2A82','#fff','SNS'], asn:['#00805A','#fff','ASN'],
+  bunq:['#3394D7','#fff'], revolut:['#191C1F','#fff'], n26:['#48AC98','#fff'], wise:['#9FE870','#163300']};
+const BANKS = {ing:'ING', rabo:'Rabobank', abn:'ABN AMRO', sns:'SNS', asn:'ASN Bank', bunq:'bunq', revolut:'Revolut', n26:'N26', wise:'Wise', other:'Anders'};
+function bankBadge(b, name, logo){
+  if(logo) return `<div class="bank img"><img src="${esc(logo)}" alt=""></div>`;
+  const st=BANK_STYLE[b];
+  if(st && BANK_SVG[b]) return `<div class="bank" style="background:${st[0]}"><svg viewBox="0 0 24 24" width="22" height="22" fill="${st[1]}"><path d="${BANK_SVG[b]}"/></svg></div>`;
+  if(st) return `<div class="bank" style="background:${st[0]};color:${st[1]};font-size:${st[2].length>1?11:16}px">${st[2]}</div>`;
   return `<div class="bank other">${esc((name||'?').trim().charAt(0).toUpperCase())}</div>`;
 }
-const BANKS = {ing:'ING', rabo:'Rabobank', revolut:'Revolut', other:'Anders'};
 
 /* ---------- data ---------- */
 function presets(){
@@ -415,21 +430,29 @@ function normalize(d){
   d.settings.share=Object.assign({}, p.settings.share, d.settings.share||{});
   if(/^https:\/\/henkieh2000\.github\.io\/(lasty|Lastly)\/?$/i.test(d.settings.share.url)) d.settings.share.url=p.settings.share.url;
   d.incomes=Array.isArray(d.incomes)?d.incomes:[];
+  d.tomb=d.tomb&&typeof d.tomb==='object'?d.tomb:{};
+  d.sync=d.sync&&d.sync.id&&d.sync.key?d.sync:null;
   d.schema=1; return d;
 }
-function emptyPartner(){ return {schema:1, partnerData:true, sentAt:0, settings:{me:'Henk', partner:'Melanie', onboarded:false}, accounts:[], costs:[], incomes:[]} }
+function emptyWeb(){
+  const p=presets(); p.costs=[]; p.incomes=[];
+  p.accounts=[{id:uid(),name:'Mijn vaste lasten',iban:'',type:'personal',bank:'other',updatedAt:Date.now()}];
+  p.settings.me='Melanie'; p.settings.partner='Henk'; p.settings.meSet=false; p.settings.lockDefault=1;
+  return p;
+}
 let S;
 try{ S = normalize(JSON.parse(bridge.load()||'null')) }catch(e){ S=null }
-if(!S) S = MODE==='owner' ? presets() : emptyPartner();
-if(MODE==='owner' && !S.settings.lockDefault){ S.settings.lockDefault=1; S.settings.lock=!!bridge.lockAvailable() }
+if(!S) S = NB ? presets() : emptyWeb();
+if(NB && !S.settings.lockDefault){ S.settings.lockDefault=1; S.settings.lock=!!bridge.lockAvailable() }
 let SEC={}; try{ SEC=JSON.parse(localStorage.getItem('lasty-sec')||'{}')||{} }catch(e){}
 const saveSec=()=>{ try{ localStorage.setItem('lasty-sec', JSON.stringify(SEC)) }catch(e){} };
-const UI = {view:'home', who:MODE==='owner'?'me':'partner', locked: MODE==='partner' && !!SEC.pinHash, pin:'', pinFirst:'', pinChange:false, faceAvail:false, received:'', ctab:'costs', sdim:'cat', ssel:0, filter:'all', q:'', ov:[], ob: S.settings.onboarded ? -1 : 0};
+const UI = {view:'home', who:MODE==='owner'?'me':'partner', locked: WEB && !!SEC.pinHash, pendingPair:'', pin:'', pinFirst:'', pinChange:false, faceAvail:false, received:'', ctab:'costs', sdim:'cat', ssel:0, filter:'all', q:'', ov:[], ob: S.settings.onboarded ? -1 : 0};
 
 let saveT;
-function persist(){
+function persist(noSync){
   clearTimeout(saveT);
-  saveT=setTimeout(()=>{ bridge.save(JSON.stringify(S)); if(MODE==='owner'){ syncReminder(); bridge.sharePending(sharePending()) } }, 120);
+  saveT=setTimeout(()=>{ bridge.save(JSON.stringify(S)); if(NB){ syncReminder(); bridge.sharePending(false) } }, 120);
+  if(S.sync && !noSync){ clearTimeout(SYNC.timer); SYNC.timer=setTimeout(()=>doSync(), 1500) }
 }
 function syncReminder(){
   const r=S.settings.reminder, c=calc();
@@ -437,47 +460,129 @@ function syncReminder(){
   bridge.reminder({enabled:!!r.enabled, day:r.day, hour:r.hour, title:'Tijd om de vaste lasten over te maken', text, partner:S.settings.partner});
 }
 
-/* ---------- share with partner (no server: data travels inside the link) ---------- */
+/* ---------- sync (end-to-end encrypted via lasty-sync worker) ---------- */
 function b64u(bytes){ let s=''; for(let i=0;i<bytes.length;i+=8192) s+=String.fromCharCode.apply(null, bytes.subarray(i,i+8192)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'') }
 function unb64u(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; const b=atob(str), u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u }
 const rnd = n => crypto.getRandomValues(new Uint8Array(n));
-function sharePayload(){
-  const joint=S.accounts.filter(a=>a.type==='joint'), ids=new Set(joint.map(a=>a.id));
-  return {v:1, settings:{me:S.settings.me, partner:S.settings.partner},
-    accounts:joint.map(a=>({id:a.id,name:a.name,iban:a.iban,bank:a.bank,type:'joint'})),
-    costs:S.costs.filter(c=>c.split==='shared'&&c.active&&ids.has(c.accountId)).map(c=>({id:c.id,name:c.name,category:c.category,amountCents:c.amountCents,freq:c.freq,split:'shared',sharePct:c.sharePct,accountId:c.accountId,active:true}))};
+const SYNC = {busy:false, again:false, err:'', timer:null};
+const sharePending = () => false;
+async function aesKey(){ return crypto.subtle.importKey('raw', unb64u(S.sync.key), 'AES-GCM', false, ['encrypt','decrypt']) }
+async function encDoc(obj){
+  const iv=rnd(12), ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, await aesKey(), new TextEncoder().encode(JSON.stringify(obj))));
+  const out=new Uint8Array(12+ct.length); out.set(iv); out.set(ct,12); return b64u(out);
 }
-function shareHash(){ const j=JSON.stringify(sharePayload()); let h=5381; for(let i=0;i<j.length;i++) h=((h*33)^j.charCodeAt(i))>>>0; return h.toString(36) }
-const sharePending = () => MODE==='owner' && S.costs.some(c=>c.split==='shared') && shareHash()!==S.settings.share.lastHash;
-async function packShare(){
-  const p=sharePayload(); p.sentAt=Date.now();
-  const raw=new TextEncoder().encode(JSON.stringify(p));
-  if(window.CompressionStream){
-    const buf=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
-    return '1.'+b64u(new Uint8Array(buf));
+async function decDoc(str){
+  const b=unb64u(str);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM', iv:b.slice(0,12)}, await aesKey(), b.slice(12));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function http(method, path, body){
+  const url=SYNC_URL+path, payload=body?JSON.stringify(body):'';
+  try{
+    const r=await fetch(url, {method, cache:'no-store', headers: body?{'Content-Type':'application/json'}:{}, body: body?payload:undefined});
+    return {status:r.status, json: await r.json().catch(()=>null)};
+  }catch(e){
+    if(NB && NB.http){ const res=JSON.parse(NB.http(method, url, payload)); let j=null; try{ j=JSON.parse(res.body) }catch(_){} return {status:res.status, json:j} }
+    throw e;
   }
-  return '0.'+b64u(raw);
 }
-async function unpackShare(code){
-  const m=String(code||'').match(/[#&?]?d=([01])\.([A-Za-z0-9_-]+)/) || String(code||'').trim().match(/^([01])\.([A-Za-z0-9_-]+)$/);
-  if(!m) return null;
-  let bytes=unb64u(m[2]);
-  if(m[1]==='1'){
-    if(!window.DecompressionStream) return null;
-    bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+function localJoint(){
+  const a=S.sync.role==='a';
+  return {
+    accounts: S.accounts.filter(x=>x.type==='joint').map(x=>({id:x.id, name:x.name, iban:x.iban||'', bank:x.bank, logo:x.logo||'', updatedAt:x.updatedAt||0})),
+    costs: S.costs.filter(c=>c.split==='shared').map(c=>({id:c.id, name:c.name, category:c.category, amountCents:c.amountCents, freq:c.freq,
+      pctA: a ? c.sharePct : 100-c.sharePct, accountId:c.accountId, active:c.active, note:c.note||'', updatedAt:c.updatedAt||0})),
+    tomb: Object.assign({}, S.tomb)
+  };
+}
+function mergeSets(x, y){
+  const tomb=Object.assign({}, x.tomb); for(const k in y.tomb) tomb[k]=Math.max(tomb[k]||0, y.tomb[k]);
+  const cut=Date.now()-180*864e5; for(const k in tomb) if(tomb[k]<cut) delete tomb[k];
+  const pick=(la, lb)=>{ const m=new Map(); for(const r of la.concat(lb)){ const o=m.get(r.id); if(!o || (r.updatedAt||0)>(o.updatedAt||0)) m.set(r.id, r) }
+    return [...m.values()].filter(r=>(r.updatedAt||0)>(tomb[r.id]||0)).sort((p,q)=>p.id<q.id?-1:p.id>q.id?1:0) };
+  return {accounts:pick(x.accounts, y.accounts), costs:pick(x.costs, y.costs), tomb};
+}
+const canon = set => JSON.stringify([set.accounts.slice().sort((p,q)=>p.id<q.id?-1:1), set.costs.slice().sort((p,q)=>p.id<q.id?-1:1), Object.keys(set.tomb).sort().map(k=>[k,set.tomb[k]])]);
+function applyJoint(m){
+  const a=S.sync.role==='a';
+  const accs=new Map(m.accounts.map(r=>[r.id,r])), costs=new Map(m.costs.map(r=>[r.id,r]));
+  const toAcc = r => ({id:r.id, name:r.name, iban:r.iban, bank:r.bank, logo:r.logo||'', type:'joint', updatedAt:r.updatedAt});
+  const toCost = r => ({id:r.id, name:r.name, category:r.category, amountCents:r.amountCents, freq:r.freq, split:'shared',
+    sharePct: a ? r.pctA : 100-r.pctA, accountId:r.accountId, active:r.active, note:r.note||'', updatedAt:r.updatedAt});
+  const outA=[], seenA=new Set();
+  for(const x of S.accounts){
+    const r=accs.get(x.id);
+    if(x.type!=='joint' && !(r && (r.updatedAt||0)>(x.updatedAt||0))){ outA.push(x); seenA.add(x.id); continue }
+    if(r){ outA.push(toAcc(r)); seenA.add(x.id) }
   }
-  const p=JSON.parse(new TextDecoder().decode(bytes));
-  return p && p.v===1 && Array.isArray(p.accounts) && Array.isArray(p.costs) ? p : null;
+  for(const r of m.accounts) if(!seenA.has(r.id)) outA.push(toAcc(r));
+  const outC=[], seenC=new Set();
+  for(const x of S.costs){
+    const r=costs.get(x.id);
+    if(x.split!=='shared' && !(r && (r.updatedAt||0)>(x.updatedAt||0))){ outC.push(x); seenC.add(x.id); continue }
+    if(r){ outC.push(toCost(r)); seenC.add(x.id) }
+  }
+  for(const r of m.costs) if(!seenC.has(r.id)) outC.push(toCost(r));
+  S.accounts=outA; S.costs=outC; S.tomb=m.tomb;
 }
-async function applyShare(code, quiet){
-  let p=null; try{ p=await unpackShare(code) }catch(e){}
-  if(!p){ if(!quiet) toast('Dit is geen geldige Lasty-update'); return false }
-  if(p.sentAt && S.sentAt && p.sentAt<=S.sentAt){ if(!quiet) toast('Je hebt deze update al'); return true }
-  S.accounts=p.accounts; S.costs=p.costs; S.sentAt=p.sentAt||Date.now();
-  S.settings.me=p.settings.me||'Henk'; S.settings.partner=p.settings.partner||'Melanie';
-  persist(); render(); toast('Bijgewerkt met de gegevens van '+S.settings.me);
-  return true;
+async function doSync(){
+  if(!S.sync) return;
+  if(SYNC.busy){ SYNC.again=true; return }
+  SYNC.busy=true; refreshSyncUi();
+  let changed=false;
+  try{
+    for(let attempt=0; attempt<4; attempt++){
+      const g=await http('GET', '/v1/h/'+S.sync.id);
+      let remote={accounts:[], costs:[], tomb:{}}, names=null, v=0;
+      if(g.status===200 && g.json && g.json.data){
+        v=g.json.v; const doc=await decDoc(g.json.data);
+        remote={accounts:doc.accounts||[], costs:doc.costs||[], tomb:doc.tomb||{}}; names=doc.names||null;
+      } else if(g.status!==404) throw new Error('http');
+      const role=S.sync.role, before=canon(localJoint());
+      if(role==='b' && names && names.b && !S.settings.meSet){ S.settings.me=names.b; changed=true }
+      const merged=mergeSets(localJoint(), remote);
+      if(canon(merged)!==before){ applyJoint(merged); changed=true }
+      const nn={ a: role==='a' ? S.settings.me : ((names&&names.a)||S.settings.partner),
+                 b: role==='b' ? S.settings.me : ((names&&names.b)||S.settings.partner) };
+      const theirs = role==='a' ? nn.b : nn.a;
+      if(theirs && theirs!==S.settings.partner){ S.settings.partner=theirs; changed=true }
+      if(!names || names.a!==nn.a || names.b!==nn.b || canon(merged)!==canon(remote)){
+        const p=await http('PUT', '/v1/h/'+S.sync.id, {v, data: await encDoc({schema:2, names:nn, accounts:merged.accounts, costs:merged.costs, tomb:merged.tomb})});
+        if(p.status===409) continue;
+        if(p.status!==200) throw new Error('http');
+      }
+      S.sync.last=Date.now(); SYNC.err='';
+      break;
+    }
+  }catch(e){ SYNC.err = (e && e.name==='OperationError') ? 'key' : 'offline' }
+  SYNC.busy=false;
+  persist(true);
+  if(changed){ if(!UI.ov.length && !$('#md').innerHTML && UI.ob<0 && !UI.locked) render(); else UI.dirty=true }
+  refreshSyncUi();
+  if(SYNC.again){ SYNC.again=false; setTimeout(doSync, 300) }
 }
+function syncText(){
+  if(!S.sync) return '';
+  if(SYNC.busy) return 'Synchroniseren…';
+  if(SYNC.err==='key') return 'Koppeling klopt niet, koppel opnieuw';
+  if(SYNC.err==='offline') return 'Offline · wordt later gesynchroniseerd';
+  return S.sync.last ? 'Gesynchroniseerd met '+S.settings.partner+' · '+new Date(S.sync.last).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}) : 'Nog niet gesynchroniseerd';
+}
+function refreshSyncUi(){ document.querySelectorAll('[data-sync]').forEach(el=>el.textContent=syncText()) }
+const PAIR_RE = /p=([A-Za-z0-9_-]{22,64})\.([A-Za-z0-9_-]{43})/;
+function appUrl(){ return NB ? (S.settings.share.url||'').replace(/#.*$/,'') : location.href.split('#')[0].split('?')[0] }
+function pairLink(){ return `${appUrl()}#p=${S.sync.id}.${S.sync.key}` }
+async function joinWith(text){
+  const m=String(text||'').match(PAIR_RE);
+  if(!m){ toast('Dit is geen geldige koppellink'); return false }
+  if(S.sync && S.sync.id===m[1]){ toast('Je bent al gekoppeld'); return true }
+  S.sync={id:m[1], key:m[2], role:'b', last:0}; SYNC.err=''; persist(true);
+  await doSync();
+  if(SYNC.err==='key'){ S.sync=null; persist(true); toast('Deze koppellink werkt niet'); return false }
+  toast(SYNC.err?'Gekoppeld, synchroniseren lukt zodra je online bent':'Gekoppeld met '+S.settings.partner);
+  render(); return true;
+}
+
 const dateTxt = t => new Date(t).toLocaleString('nl-NL',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
 
 /* ---------- calculation ---------- */
@@ -496,8 +601,8 @@ function calc(){
   for(const id in acc){
     const t=acc[id];
     t.total=Math.round(t.exact+1e-7);
-    t.me=Math.min(t.total, Math.round(t.meExact+1e-7));
-    t.partner=t.total-t.me;
+    if(S.sync && S.sync.role==='b'){ t.partner=Math.min(t.total, Math.round(t.exact-t.meExact+1e-7)); t.me=t.total-t.partner }
+    else { t.me=Math.min(t.total, Math.round(t.meExact+1e-7)); t.partner=t.total-t.me }
     me+=t.me; partner+=t.partner; total+=t.total;
   }
   const income=Math.round(S.incomes.filter(i=>i.active).reduce((s,i)=>s+monthlyExact(i.amountCents,i.freq),0)+1e-7);
@@ -523,77 +628,39 @@ function confirmBox(title, text, okLabel, fn, danger){
 
 /* ---------- views ---------- */
 function vHome(){
-  const c=calc(), isP=MODE==='partner', who=UI.who, isMe=who==='me';
+  const c=calc(), isMe=UI.who==='me';
   const name = isMe?S.settings.me:S.settings.partner;
   const amount = isMe?c.me:c.partner;
   const rows = S.accounts.map(a=>({a, t:c.acc[a.id]})).filter(x=>(isMe?x.t.me:x.t.partner)>0);
-  const meName = isP ? S.settings.partner : S.settings.me;
-  let h = `<div class="top"><div class="who"><div class="ava">${esc(meName.charAt(0))}</div><div><h1>${greeting()} ${esc(meName)},</h1><p>${isP?'Jouw deel voor '+monthName():'Je vaste lasten voor '+monthName()}</p></div></div>
-    ${isP?`<button class="rbtn plain" onclick="A.pasteUpdate()" aria-label="Update plakken">${ic('paste')}</button>`:`<button class="rbtn plain" onclick="A.sendToPartner()" aria-label="Stuur naar ${esc(S.settings.partner)}">${ic('share')}</button>`}</div>`;
-  if(isP && !S.costs.length){
-    return h+`<div class="hero"><div class="stack"><div class="gcard"><div class="gin"><div class="lbl"><span class="logo"><b></b>Lasty</span><span>${esc(meName)}</span></div>
-      <div class="big">${money(0)}</div><div class="sub">nog geen gegevens</div></div><div class="gfoot"><span>Wacht op ${esc(S.settings.me)}</span><span></span></div></div></div></div>
-      <h2>Zo krijg je de gegevens</h2>
-      <ol class="steplist"><li><span>Vraag ${esc(S.settings.me)} om in zijn Lasty op ${ic('share')} te tikken</span></li><li>Houd de link in WhatsApp ingedrukt en kies Kopieer</li><li>Tik hieronder op Update plakken</li></ol>
-      <button class="btn" onclick="A.pasteUpdate()">${ic('paste')} Update plakken</button>`;
-  }
-  if(!isP && sharePending()){
-    h+=`<div class="row" onclick="A.sendToPartner()"><div class="ico">${ic('bell','gi')}</div><div class="tx"><div class="t">${esc(S.settings.partner)} heeft oude gegevens</div><div class="s">Je hebt gezamenlijke kosten aangepast</div></div><div class="r"><div class="a" style="color:var(--coral);font-size:14px">Stuur</div></div></div>`;
-  }
-  h+=`<div class="hero"><div class="stack"><div class="gcard"><div class="gin">
+  let h = `<div class="top"><div class="who"><div class="ava">${esc(S.settings.me.charAt(0))}</div><div><h1>${greeting()} ${esc(S.settings.me)}</h1>
+      <p ${S.sync?'data-sync':''}>${S.sync?esc(syncText()):'Vaste lasten voor '+monthName()}</p></div></div>
+    <button class="rbtn plain" onclick="A.share()" aria-label="Delen">${ic('share')}</button></div>
+  <div class="hero"><div class="stack"><div class="gcard"><div class="gin">
       <div class="lbl"><span class="logo"><b></b>Lasty</span><span>${esc(name)}</span></div>
       <div class="big">${money(amount)}</div>
-      <div class="sub">over te maken per maand</div></div>
-      <div class="gfoot"><span>${rows.length} ${rows.length===1?'rekening':'rekeningen'}</span><span>${isP?'van '+fmt(c.total)+' gezamenlijk':(c.total?Math.round(amount/c.total*100):0)+'% van '+fmt(c.total)}</span></div>
+      <div class="sub">over te maken in ${monthName()}</div></div>
+      <div class="gfoot"><span>${rows.length} ${rows.length===1?'overboeking':'overboekingen'}</span><span>totaal ${fmt(c.total)}</span></div>
   </div></div>
-  ${isP?'':`<div class="seg">${segBtn(isMe,"A.who('me')",S.settings.me)}${segBtn(!isMe,"A.who('partner')",S.settings.partner)}</div>`}</div>
-  <h2>Overmaken naar<small>${isP?'tik voor IBAN':esc(name)}</small></h2>`;
-  if(!rows.length) h+=`<div class="empty">Niets over te maken voor ${esc(name)}.</div>`;
+  <div class="seg">${segBtn(isMe,"A.who('me')",S.settings.me)}${segBtn(!isMe,"A.who('partner')",S.settings.partner)}</div></div>
+  <h2>Overmaken</h2>`;
+  if(!rows.length) h+=`<div class="empty">${S.costs.length?'Niets over te maken voor '+esc(name)+'.':'Nog geen kosten. Voeg ze toe bij Kosten.'}</div>`;
   for(const {a,t} of rows){
-    h+=`<div class="row" onclick="A.accDetail('${a.id}')">${bankBadge(a.bank,a.name)}
-      <div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${a.iban?esc(ibanFmt(a.iban)):'Nog geen IBAN ingevuld'}</div></div>
-      <div class="r"><div class="a">${money(isMe?t.me:t.partner)}</div><div class="s">${t.items.length} ${t.items.length===1?'post':'posten'}</div></div></div>`;
+    h+=`<div class="row" onclick="A.accDetail('${a.id}')">${bankBadge(a.bank,a.name,a.logo)}
+      <div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${a.iban?esc(ibanFmt(a.iban)):'IBAN nog invullen'}</div></div>
+      <div class="r"><div class="a">${money(isMe?t.me:t.partner)}</div></div></div>`;
   }
-  if(isMe){
-    const pct = c.income>0 ? Math.min(100, Math.round(c.me/c.income*100)) : 0;
-    h+=`<h2>Vrij te besteden</h2><div class="card">
-      <div class="kv"><span>Inkomsten per maand</span><span>${money(c.income)}</span></div>
-      <div class="kv"><span>Overmaken</span><span>−${money(c.me)}</span></div>
+  if(isMe && c.income>0){
+    const pct = Math.min(100, Math.round(c.me/c.income*100));
+    h+=`<h2>Na de vaste lasten</h2><div class="card">
+      <div class="kv big" style="padding-top:0"><span>${c.free<0?'Tekort':'Vrij te besteden'}</span><span class="${c.free<0?'':'pos'}">${money(c.free)}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="kv big"><span>${c.free<0?'Tekort':'Over'}</span><span class="${c.free<0?'':'pos'}">${money(c.free)}</span></div>
-      <div class="note">${pct}% van je inkomen gaat naar vaste lasten.</div></div>`;
-  }
-  if(isP){
-    h+=`<div class="note" style="margin:14px 2px">Bijgewerkt door ${esc(S.settings.me)} op ${dateTxt(S.sentAt)}.</div>
-      <button class="btn two" onclick="A.pasteUpdate()">${ic('paste')} Update plakken</button>`;
-  } else {
-    h+=`<button class="btn mt" onclick="A.sendToPartner()">${ic('share')} Stuur naar ${esc(S.settings.partner)}</button>`;
+      <div class="note">${pct}% van ${fmt(c.income)} inkomen gaat naar vaste lasten.</div></div>`;
   }
   return h;
 }
 function segBtn(on, fn, label, icon='check'){ return `<button class="${on?'on':''}" onclick="${fn}"><span class="dot">${ic(icon)}</span>${esc(label)}</button>` }
 
-function vCostsPartner(){
-  const c=calc();
-  let h=`<div class="top"><div><h1>Gezamenlijke kosten</h1><p>Zoals ${esc(S.settings.me)} ze heeft ingevuld</p></div></div>
-    <div class="total"><span>Jouw deel per maand</span>${money(c.partner)}</div>`;
-  if(!S.costs.length) return h+`<div class="empty">Nog geen gegevens van ${esc(S.settings.me)}.</div>`;
-  const groups={}; S.costs.forEach(x=>{ const k=x.category||'Overig'; (groups[k]=groups[k]||[]).push(x) });
-  for(const g of Object.keys(groups)){
-    const gs=Math.round(groups[g].reduce((s,x)=>s+monthlyExact(x.amountCents,x.freq)*(100-x.sharePct)/100,0)+1e-7);
-    h+=`<h2>${esc(g)}<small>jouw deel ${fmt(gs)}</small></h2>`;
-    for(const x of groups[g]){
-      const m=monthlyExact(x.amountCents,x.freq);
-      const acc=(S.accounts.find(a=>a.id===x.accountId)||{}).name||'';
-      h+=`<div class="row"><div class="ico">${ic(catIcon(x.category),'gi')}</div>
-        <div class="tx"><div class="t">${esc(x.name)}</div><div class="s">${fmt(m)} totaal · ${esc(acc)}</div></div>
-        <div class="r"><div class="a">${money(m*(100-x.sharePct)/100)}</div><div class="s">${x.sharePct===50?'helft':(100-x.sharePct)+'%'}</div></div></div>`;
-    }
-  }
-  return h;
-}
 function vCosts(){
-  if(MODE==='partner') return vCostsPartner();
   const c=calc();
   let h=`<div class="top"><div><h1>${UI.ctab==='costs'?'Kosten':'Inkomsten'}</h1><p>${UI.ctab==='costs'?'Alles omgerekend naar per maand':'Wat er per maand binnenkomt'}</p></div>
     <button class="rbtn" onclick="${UI.ctab==='costs'?'A.editCost()':'A.editIncome()'}" aria-label="Toevoegen">${ic('plus')}</button></div>
@@ -630,10 +697,10 @@ function costList(){
     h+=`<h2>${esc(g)}<small>${fmt(gs)}</small></h2>`;
     for(const c of groups[g]){
       const m=Math.round(monthlyExact(c.amountCents,c.freq));
-      const splitTxt = c.split==='shared' ? (c.sharePct===50?'Gedeeld':`Gedeeld ${c.sharePct}/${100-c.sharePct}`) : 'Alleen '+esc(S.settings.me);
+      const splitTxt = c.split==='shared' ? (c.sharePct===50?'Gedeeld':`Gedeeld ${c.sharePct}/${100-c.sharePct}`) : 'Eigen';
       h+=`<div class="row ${c.active?'':'off'}" onclick="A.editCost('${c.id}')"><div class="ico">${ic(catIcon(c.category),'gi')}</div>
-        <div class="tx"><div class="t">${esc(c.name)}</div><div class="s">${splitTxt} · ${esc(accName(c.accountId))}${c.active?'':' · Uit'}</div></div>
-        <div class="r"><div class="a">${money(m)}</div><div class="s">${c.freq!=='month'?fmt(c.amountCents)+' '+FREQ[c.freq].u:FREQ[c.freq].l}</div></div></div>`;
+        <div class="tx"><div class="t">${esc(c.name)}</div><div class="s">${splitTxt}${c.freq!=='month'?' · '+fmt(c.amountCents)+' '+FREQ[c.freq].u:''}${c.active?'':' · uit'}</div></div>
+        <div class="r"><div class="a">${money(m)}</div></div></div>`;
     }
   }
   return h;
@@ -710,7 +777,7 @@ function vAccounts(){
     if(!list.length) h+=`<div class="empty" style="padding:14px">Geen ${type==='personal'?'persoonlijke':'gezamenlijke'} rekening.</div>`;
     for(const a of list){
       const t=c.acc[a.id];
-      h+=`<div class="row" onclick="A.editAccount('${a.id}')">${bankBadge(a.bank,a.name)}
+      h+=`<div class="row" onclick="A.editAccount('${a.id}')">${bankBadge(a.bank,a.name,a.logo)}
         <div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${a.iban?esc(ibanFmt(a.iban)):'Nog geen IBAN ingevuld'}</div></div>
         <div class="r"><div class="a">${money(t.total)}</div><div class="s">per maand</div></div></div>`;
     }
@@ -719,45 +786,46 @@ function vAccounts(){
   return h;
 }
 
-function vSettingsPartner(){
-  return `<div class="top"><div><h1>Instellingen</h1><p>Lasty ${esc(bridge.version())}</p></div></div>
-  <h2>Gegevens</h2>
-  <div class="row" onclick="A.pasteUpdate()"><div class="ico">${ic('paste','gi')}</div><div class="tx"><div class="t">Update plakken</div><div class="s">${S.sentAt?'Laatst bijgewerkt '+dateTxt(S.sentAt):'Nog geen gegevens'}</div></div>${ic('chev')}</div>
-  <h2>Inloggen</h2>
-  <div class="row" onclick="A.changePin()"><div class="ico">${ic('lock','gi')}</div><div class="tx"><div class="t">${SEC.pinHash?'Pincode wijzigen':'Pincode instellen'}</div><div class="s">4 cijfers</div></div>${ic('chev')}</div>
-  ${UI.faceAvail?`<div class="switchrow"><div class="ico">${ic('face','gi')}</div><div class="tx"><div class="t">Face ID</div><div class="s">Ontgrendel zonder pincode</div></div>
-    <button class="sw ${SEC.faceId?'on':''}" onclick="A.toggleFace()" aria-label="Face ID"></button></div>`:''}
-  <h2>Over</h2>
-  <div class="note" style="margin:0 2px 10px">Je ziet hier de gezamenlijke kosten die ${esc(S.settings.me)} in zijn Lasty heeft staan. Ze staan alleen op deze iPhone. Stuurt ${esc(S.settings.me)} een nieuwe link, plak die dan via Update plakken.</div>
-  <div class="row" onclick="A.wipe()"><div class="ico">${ic('reset','gi')}</div><div class="tx"><div class="t">Alles wissen</div><div class="s">Gegevens, pincode en Face ID</div></div>${ic('chev')}</div>`;
-}
 function vSettings(){
-  if(MODE==='partner') return vSettingsPartner();
   const st=S.settings, r=st.reminder;
-  return `<div class="top"><div><h1>Instellingen</h1><p>Lasty ${esc(bridge.version())}</p></div></div>
+  let h=`<div class="top"><div><h1>Instellingen</h1><p>Lasty ${esc(bridge.version())}</p></div></div>
+  <h2>Samen met ${esc(st.partner)}</h2>`;
+  if(S.sync){
+    h+=`<div class="row" onclick="doSync()"><div class="ico">${ic('reset','gi')}</div><div class="tx"><div class="t">Gekoppeld</div><div class="s" data-sync>${esc(syncText())}</div></div><div class="r"><div class="a" style="color:var(--coral);font-size:14px">Nu</div></div></div>
+    <div class="row" onclick="A.sendPair()"><div class="ico">${ic('share','gi')}</div><div class="tx"><div class="t">Koppellink opnieuw sturen</div><div class="s">Voor een nieuwe telefoon of na wissen</div></div>${ic('chev')}</div>
+    <div class="row" onclick="A.unpair()"><div class="ico">${ic('x','gi')}</div><div class="tx"><div class="t">Ontkoppelen</div><div class="s">Gezamenlijke kosten blijven op deze telefoon staan</div></div>${ic('chev')}</div>`;
+  } else {
+    h+=`<div class="row" onclick="A.pairCreate()"><div class="ico">${ic('share','gi')}</div><div class="tx"><div class="t">Koppel met ${esc(st.partner)}</div><div class="s">Gezamenlijke kosten blijven automatisch gelijk</div></div>${ic('chev')}</div>
+    <div class="row" onclick="A.pairJoin()"><div class="ico">${ic('paste','gi')}</div><div class="tx"><div class="t">Koppellink plakken</div><div class="s">Heeft ${esc(st.partner)} je een link gestuurd?</div></div>${ic('chev')}</div>`;
+  }
+  h+=`<div class="note" style="margin:2px 2px 0">Alleen gezamenlijke rekeningen en gedeelde kosten worden gedeeld, versleuteld met een sleutel die alleen jullie hebben. Je eigen kosten en inkomsten blijven op je telefoon.</div>
   <h2>Namen</h2>
   <div class="field"><label>Jij</label><input value="${esc(st.me)}" maxlength="24" onchange="A.setName('me',this.value)"></div>
-  <div class="field"><label>Partner</label><input value="${esc(st.partner)}" maxlength="24" onchange="A.setName('partner',this.value)"></div>
-  <h2>Herinnering</h2>
-  <div class="switchrow"><div class="ico">${ic('bell','gi')}</div><div class="tx"><div class="t">Maandelijkse melding</div><div class="s">Herinnert je eraan om over te maken</div></div>
-    <button class="sw ${r.enabled?'on':''}" onclick="A.toggleReminder()" aria-label="Herinnering"></button></div>
-  ${r.enabled?`<div class="switchrow"><div class="tx"><div class="t">Dag van de maand</div></div>
-      <div class="stepper"><button class="mini" onclick="A.rem('day',-1)">${ic('minus')}</button><span>${r.day}e</span><button class="mini" onclick="A.rem('day',1)">${ic('plus')}</button></div></div>
-    <div class="switchrow"><div class="tx"><div class="t">Tijd</div></div>
-      <div class="stepper"><button class="mini" onclick="A.rem('hour',-1)">${ic('minus')}</button><span>${String(r.hour).padStart(2,'0')}:00</span><button class="mini" onclick="A.rem('hour',1)">${ic('plus')}</button></div></div>
-    <button class="btn two" onclick="A.testReminder()">${ic('bell')} Testmelding sturen</button>`:''}
-  <h2>${esc(st.partner)} (iPhone)</h2>
-  <div class="row" onclick="A.sendToPartner()"><div class="ico">${ic('share','gi')}</div><div class="tx"><div class="t">Stuur update naar ${esc(st.partner)}</div><div class="s">${st.share.lastSentAt?'Laatst verstuurd '+dateTxt(st.share.lastSentAt)+(sharePending()?' · er zijn wijzigingen':' · up-to-date'):'Nog niet verstuurd'}</div></div>${ic('chev')}</div>
-  <div class="field"><label>Adres van de iPhone-app</label><input value="${esc(st.share.url)}" inputmode="url" autocapitalize="off" onchange="A.setShareUrl(this.value)"></div>
-  <div class="note" style="margin:0 2px 4px">Alleen de gezamenlijke rekeningen en gedeelde kosten gaan mee, in de link zelf. Er staat niets op een server. Heb je iets aangepast, dan krijg je 's avonds één melding om de update te sturen.</div>
-  <h2>Beveiliging</h2>
-  <div class="switchrow"><div class="ico">${ic('lock','gi')}</div><div class="tx"><div class="t">Inloggen met vingerafdruk of pincode</div><div class="s">Bij openen van Lasty</div></div>
-    <button class="sw ${st.lock?'on':''}" onclick="A.toggleLock()" aria-label="Vergrendeling"></button></div>
-  <h2>Gegevens</h2>
-  <div class="row" onclick="A.exportBackup()"><div class="ico">${ic('down','gi')}</div><div class="tx"><div class="t">Back-up maken</div><div class="s">Bewaar alles als bestand</div></div>${ic('chev')}</div>
-  <div class="row" onclick="A.importBackup()"><div class="ico">${ic('up','gi')}</div><div class="tx"><div class="t">Back-up terugzetten</div><div class="s">Vervangt de huidige gegevens</div></div>${ic('chev')}</div>
-  <div class="row" onclick="A.resetPresets()"><div class="ico">${ic('reset','gi')}</div><div class="tx"><div class="t">Voorinstellingen terugzetten</div><div class="s">Begin opnieuw met de standaard kosten</div></div>${ic('chev')}</div>
-  <div class="note" style="margin-top:14px">Alles staat alleen op deze telefoon. Lasty heeft geen internettoegang.</div>`;
+  <div class="field"><label>Partner</label><input value="${esc(st.partner)}" maxlength="24" onchange="A.setName('partner',this.value)"></div>`;
+  if(NB){
+    h+=`<h2>Herinnering</h2>
+    <div class="switchrow"><div class="ico">${ic('bell','gi')}</div><div class="tx"><div class="t">Maandelijkse melding</div><div class="s">${r.enabled?`De ${r.day}e om ${String(r.hour).padStart(2,'0')}:00`:'Uit'}</div></div>
+      <button class="sw ${r.enabled?'on':''}" onclick="A.toggleReminder()" aria-label="Herinnering"></button></div>
+    ${r.enabled?`<div class="switchrow"><div class="tx"><div class="t">Dag</div></div>
+        <div class="stepper"><button class="mini" onclick="A.rem('day',-1)">${ic('minus')}</button><span>${r.day}e</span><button class="mini" onclick="A.rem('day',1)">${ic('plus')}</button></div></div>
+      <div class="switchrow"><div class="tx"><div class="t">Tijd</div></div>
+        <div class="stepper"><button class="mini" onclick="A.rem('hour',-1)">${ic('minus')}</button><span>${String(r.hour).padStart(2,'0')}:00</span><button class="mini" onclick="A.rem('hour',1)">${ic('plus')}</button></div></div>`:''}
+    <h2>Inloggen</h2>
+    <div class="switchrow"><div class="ico">${ic('lock','gi')}</div><div class="tx"><div class="t">Vingerafdruk of pincode</div><div class="s">Bij openen van Lasty</div></div>
+      <button class="sw ${st.lock?'on':''}" onclick="A.toggleLock()" aria-label="Vergrendeling"></button></div>
+    <div class="field" style="margin-top:14px"><label>Adres van de iPhone-app</label><input value="${esc(st.share.url)}" inputmode="url" autocapitalize="off" onchange="A.setShareUrl(this.value)"></div>`;
+  } else {
+    h+=`<h2>Inloggen</h2>
+    <div class="row" onclick="A.changePin()"><div class="ico">${ic('lock','gi')}</div><div class="tx"><div class="t">${SEC.pinHash?'Pincode wijzigen':'Pincode instellen'}</div><div class="s">4 cijfers</div></div>${ic('chev')}</div>
+    ${UI.faceAvail?`<div class="switchrow"><div class="ico">${ic('face','gi')}</div><div class="tx"><div class="t">Face ID</div><div class="s">Ontgrendel zonder pincode</div></div>
+      <button class="sw ${SEC.faceId?'on':''}" onclick="A.toggleFace()" aria-label="Face ID"></button></div>`:''}`;
+  }
+  h+=`<h2>Gegevens</h2>
+  <div class="row" onclick="A.exportBackup()"><div class="ico">${ic('down','gi')}</div><div class="tx"><div class="t">Back-up maken</div></div>${ic('chev')}</div>
+  <div class="row" onclick="A.importBackup()"><div class="ico">${ic('up','gi')}</div><div class="tx"><div class="t">Back-up terugzetten</div></div>${ic('chev')}</div>
+  ${NB?`<div class="row" onclick="A.resetPresets()"><div class="ico">${ic('reset','gi')}</div><div class="tx"><div class="t">Voorinstellingen terugzetten</div></div>${ic('chev')}</div>`
+      :`<div class="row" onclick="A.wipe()"><div class="ico">${ic('reset','gi')}</div><div class="tx"><div class="t">Alles wissen van deze iPhone</div></div>${ic('chev')}</div>`}`;
+  return h;
 }
 
 /* ---------- editors ---------- */
@@ -782,7 +850,7 @@ function ovCost(){
   }
   b+=`<div class="lbl2">Naar rekening</div>`;
   if(!accs.length) b+=`<div class="note">Er is nog geen ${D.split==='shared'?'gezamenlijke':'persoonlijke'} rekening. Voeg die toe bij Rekeningen.</div>`;
-  b+=accs.map(a=>`<button class="opt ${D.accountId===a.id?'on':''}" onclick="A.d('accountId','${a.id}')">${bankBadge(a.bank,a.name)}<div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${a.iban?esc(ibanFmt(a.iban)):BANKS[a.bank]||''}</div></div>${D.accountId===a.id?ic('check'):''}</button>`).join('');
+  b+=accs.map(a=>`<button class="opt ${D.accountId===a.id?'on':''}" onclick="A.d('accountId','${a.id}')">${bankBadge(a.bank,a.name,a.logo)}<div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${a.iban?esc(ibanFmt(a.iban)):BANKS[a.bank]||''}</div></div>${D.accountId===a.id?ic('check'):''}</button>`).join('');
   b+=`<div class="lbl2">Categorie</div><div class="chips">${cats.map(c=>`<button class="chip ${D.category===c?'on':''}" onclick="A.d('category',${esc(JSON.stringify(c))})">${esc(c)}</button>`).join('')}</div>
   <div class="field" style="margin-top:10px"><label>Of nieuwe categorie</label><input value="${cats.includes(D.category)?'':esc(D.category)}" placeholder="Bijvoorbeeld Wonen" onchange="A.d('category',this.value.trim())"></div>
   <div class="field"><label>Notitie</label><textarea rows="2" oninput="D.note=this.value" placeholder="Optioneel">${esc(D.note)}</textarea></div>
@@ -823,10 +891,13 @@ function ovAccount(){
   const b=`<div class="field"><label>Naam</label><input id="f_name" value="${esc(D.name)}" placeholder="Bijvoorbeeld Gezamenlijk Rabo" oninput="D.name=this.value"></div>
   <div class="field"><label>IBAN</label><input id="f_iban" value="${esc(ibanFmt(D.iban))}" placeholder="NL00 BANK 0000 0000 00" autocapitalize="characters" oninput="D.iban=this.value;A.ibanCheck()"><div class="err" id="e_iban"></div></div>
   <div class="lbl2">Bank</div>
-  <div class="seg">${Object.keys(BANKS).map(k=>`<button class="${D.bank===k?'on':''}" onclick="A.d('bank','${k}')">${BANKS[k]}</button>`).join('')}</div>
+  <div class="bankgrid">${Object.keys(BANKS).map(k=>`<button class="bopt ${D.bank===k&&!D.logo?'on':''}" onclick="D.logo='';A.d('bank','${k}')">${bankBadge(k,D.name)}<span>${BANKS[k]}</span></button>`).join('')}</div>
+  <div class="row" style="margin-top:8px" onclick="A.pickLogo()">${D.logo?bankBadge(D.bank,D.name,D.logo):`<div class="ico">${ic('addsq','gi')}</div>`}
+    <div class="tx"><div class="t">${D.logo?'Eigen logo':'Eigen logo kiezen'}</div><div class="s">${D.logo?'Tik om te vervangen':'Bijvoorbeeld een screenshot van je bank-app'}</div></div>
+    ${D.logo?`<button class="mini" onclick="event.stopPropagation();D.logo='';A.d('bank',D.bank)" aria-label="Logo weghalen">${ic('x')}</button>`:ic('chev')}</div>
   <div class="lbl2">Soort rekening</div>
   <div class="seg">${segBtn(D.type==='personal',"A.d('type','personal')",'Persoonlijk','user')}${segBtn(D.type==='joint',"A.d('type','joint')",'Gezamenlijk','check')}</div>
-  <div class="note" style="margin:8px 2px 0">Persoonlijk: voor kosten van alleen ${esc(S.settings.me)}. Gezamenlijk: voor gedeelde kosten.</div>
+  <div class="note" style="margin:8px 2px 0">${D.type==='joint'?'Gezamenlijk: voor gedeelde kosten, ook zichtbaar bij '+esc(S.settings.partner)+'.':'Persoonlijk: alleen voor jouw eigen kosten.'}</div>
   <button class="btn" style="margin-top:20px" onclick="A.saveAccount()">${isNew?'Toevoegen':'Opslaan'}</button>
   ${isNew?'':`<button class="btn three mt" onclick="A.delAccount()">Verwijderen</button>`}`;
   return sheet(isNew?'Nieuwe rekening':'Rekening', b);
@@ -835,7 +906,7 @@ function ovAccDetail(id){
   const a=S.accounts.find(x=>x.id===id); if(!a) return '';
   const t=calc().acc[id], isMe=UI.who==='me', name=isMe?S.settings.me:S.settings.partner;
   const amt=isMe?t.me:t.partner;
-  let b=`<div class="row" style="margin-top:4px">${bankBadge(a.bank,a.name)}<div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${BANKS[a.bank]||''} · ${a.type==='joint'?'Gezamenlijk':'Persoonlijk'}</div></div></div>
+  let b=`<div class="row" style="margin-top:4px">${bankBadge(a.bank,a.name,a.logo)}<div class="tx"><div class="t">${esc(a.name)}</div><div class="s">${BANKS[a.bank]||''} · ${a.type==='joint'?'Gezamenlijk':'Persoonlijk'}</div></div></div>
   <div class="row"><div class="tx"><div class="s" style="margin:0 0 2px">IBAN</div><div class="t">${a.iban?esc(ibanFmt(a.iban)):'Nog niet ingevuld'}</div></div>
     ${a.iban?`<button class="mini" onclick="A.copy(${esc(JSON.stringify(ibanClean(a.iban)))},'IBAN gekopieerd')">${ic('copy')}</button>`:''}</div>
   <div class="row"><div class="tx"><div class="s" style="margin:0 0 2px">${esc(name)} maakt over per maand</div><div class="t" style="font-size:20px;font-weight:800">${money(amt)}</div></div>
@@ -886,35 +957,48 @@ function keypad(withFace){
     <button class="ghost" onclick="A.key('del')" aria-label="Wissen">${ic('del')}</button></div>`;
 }
 function vLock(){
-  return `<div class="in"><div class="applogo">L</div><h1>Welkom terug, ${esc(S.settings.partner)}</h1><p>Voer je pincode in${SEC.faceId?' of gebruik Face ID':''}</p>${keypad(!!SEC.faceId)}</div>`;
+  return `<div class="in"><div class="applogo">L</div><h1>Welkom terug, ${esc(S.settings.me)}</h1><p>Voer je pincode in${SEC.faceId?' of gebruik Face ID':''}</p>${keypad(!!SEC.faceId)}</div>`;
 }
-function vOnboardingPartner(){
+/* web onboarding: 0 welkom, 1 koppelen, 2 namen, 3 pincode, 4 herhalen, 5 Face ID */
+function vOnboardingWeb(){
   const st=S.settings, step=UI.ob;
-  const steps=`<div class="steps" style="width:100%">${[1,2,3].map(i=>`<i class="${i<=step?'on':''}"></i>`).join('')}</div>`;
+  const steps=`<div class="steps" style="width:100%">${[1,2,3,4,5].map(i=>`<i class="${i<=step?'on':''}"></i>`).join('')}</div>`;
   if(step===0) return `<div class="in">
-    <div class="obcards"><div class="c1"></div><div class="c2"></div><div class="c3"><span class="logo"><b></b>Lasty</span><span class="n">${S.costs.length?fmt(calc().partner).replace('€','€ '):'€ 0,00'}</span></div></div>
-    <h1>Samen<br>vaste lasten,<br>helder.</h1>
-    <p>Hier zie je jouw deel van de gezamenlijke vaste lasten en naar welke rekening het gaat. Eerst stel je een pincode in.</p>
+    <div class="obcards"><div class="c1"></div><div class="c2"></div><div class="c3"><span class="logo"><b></b>Lasty</span><span class="n">€ 0,00</span></div></div>
+    <h1>Vaste lasten.<br>Eerlijk<br>verdeeld.</h1>
+    <p>Jouw eigen vaste lasten, plus de gezamenlijke kosten die jullie samen bijhouden.</p>
     <div class="grow"></div>
     <button class="btn" onclick="A.ob(1)">Start</button></div>`;
-  if(step===1||step===2) return `<div class="pin">${UI.pinChange?'':steps}<div class="applogo" style="margin-top:20px">L</div>
-    <h1>${step===1?'Kies een pincode':'Herhaal je pincode'}</h1><p>${step===1?'4 cijfers om Lasty te openen':'Ter controle'}</p>${keypad(false)}
+  if(step===1) return `<div class="in">${steps}
+    <h1 class="s">Koppelen</h1>
+    <p>${S.sync?'Gekoppeld met '+esc(st.partner)+'. De gezamenlijke kosten staan erin.':'Heb je een koppellink gekregen? Kopieer hem in WhatsApp (ingedrukt houden → Kopieer) en plak hem hier.'}</p>
+    ${S.sync?`<div class="row" style="background:#1A1A1E;box-shadow:none;color:#fff"><div class="ico" style="background:#26262B">${ic('check','gi')}</div><div class="tx"><div class="t">Gekoppeld met ${esc(st.partner)}</div><div class="s" data-sync>${esc(syncText())}</div></div></div>`:''}
+    <div class="grow"></div>
+    ${S.sync?`<button class="btn" onclick="A.ob(2)">Volgende</button>`
+      :`<button class="btn" onclick="A.pairJoin()">${ic('paste')} Koppellink plakken</button><button class="skip" onclick="A.ob(2)">Later koppelen</button>`}</div>`;
+  if(step===2) return `<div class="in">${steps}
+    <h1 class="s">Hoe heten jullie?</h1><p>Deze namen zie je terug bij de bedragen.</p>
+    <div class="field"><label>Jij</label><input id="ob_me" value="${esc(st.me)}" maxlength="24"></div>
+    <div class="field"><label>Partner</label><input id="ob_pa" value="${esc(st.partner)}" maxlength="24"></div>
+    <div class="grow"></div>
+    <button class="btn" onclick="A.obNamesWeb()">Volgende</button></div>`;
+  if(step===3||step===4) return `<div class="pin">${UI.pinChange?'':steps}<div class="applogo" style="margin-top:20px">L</div>
+    <h1>${step===3?'Kies een pincode':'Herhaal je pincode'}</h1><p>${step===3?'4 cijfers om Lasty te openen':'Ter controle'}</p>${keypad(false)}
     ${UI.pinChange?`<button class="skip" onclick="A.cancelPin()">Annuleren</button>`:''}</div>`;
   return `<div class="pin">${steps}<div class="applogo" style="margin-top:20px">${ic('face')}</div>
     <h1>Face ID gebruiken?</h1><p>Dan opent Lasty met je gezicht. Je pincode blijft werken als reserve.</p>
-    <div class="grow" style="flex:1"></div>
+    <div style="flex:1"></div>
     <button class="btn" onclick="A.obFace(true)">Face ID aanzetten</button>
     <button class="skip" onclick="A.obFace(false)">Niet nu</button></div>`;
 }
 function vInstall(){
-  const c=calc();
-  return `<div class="wrap"><div class="top"><div class="who"><div class="applogo" style="width:48px;height:48px;border-radius:15px;font-size:24px">L</div><div><h1>Lasty</h1><p>Vaste lasten van ${esc(S.settings.me)} en ${esc(S.settings.partner)}</p></div></div></div>
-    ${UI.received?`<div class="card"><div class="kv"><span>Jouw deel per maand</span><span>${money(c.partner)}</span></div>
-      <div class="note">Update van ${esc(S.settings.me)} ontvangen. Kopieer hem en plak hem in de app.</div>
-      <button class="btn mt" onclick="A.copyReceived()">${ic('copy')} Kopieer update</button></div>`:''}
+  return `<div class="wrap"><div class="top"><div class="who"><div class="applogo" style="width:48px;height:48px;border-radius:15px;font-size:24px">L</div><div><h1>Lasty</h1><p>Vaste lasten, eerlijk verdeeld</p></div></div></div>
+    ${UI.pendingPair?`<div class="card"><div class="t" style="font-weight:800;font-size:16px">Koppellink ontvangen</div>
+      <div class="note" style="margin-top:4px">Kopieer hem nu. Je plakt hem straks in de app.</div>
+      <button class="btn mt" onclick="A.copy(location.href.split('#')[0]+'#p='+UI.pendingPair,'Gekopieerd. Zet Lasty nu op je beginscherm')">${ic('copy')} Kopieer koppellink</button></div>`:''}
     <h2>Zet Lasty op je beginscherm</h2>
-    <ol class="steplist"><li><span>Tik onderin Safari op ${ic('ishare')} Deel</span></li><li><span>Kies ${ic('addsq')} Zet op beginscherm</span></li><li><span>Open Lasty vanaf je beginscherm${UI.received?' en tik op Update plakken':''}</span></li></ol>
-    <div class="note">Lasty werkt daarna als een gewone app, ook zonder internet. Je gegevens blijven op je iPhone.</div></div>`;
+    <ol class="steplist"><li><span>Tik onderin Safari op ${ic('ishare')} Deel</span></li><li><span>Kies ${ic('addsq')} Zet op beginscherm</span></li><li><span>Open Lasty vanaf je beginscherm</span></li></ol>
+    <div class="note">Daarna werkt Lasty als een gewone app, ook zonder internet, en wordt hij vanzelf bijgewerkt.</div></div>`;
 }
 
 /* ---------- render ---------- */
@@ -926,21 +1010,15 @@ function setBars(){
   else bridge.bars(dark?'#0B0B0D':'#F2F2F4', !dark);
 }
 function render(){
-  if(MODE==='partner' && IS_IOS && !STANDALONE){
-    $('#ov').innerHTML=''; $('#app').innerHTML=vInstall(); setBars(); return;
-  }
-  if(UI.locked){
-    $('#app').innerHTML=''; $('#ov').innerHTML=`<div class="lock">${vLock()}</div>`; setBars(); return;
-  }
+  if(WEB && IS_IOS && !STANDALONE){ $('#ov').innerHTML=''; $('#app').innerHTML=vInstall(); setBars(); return }
+  if(UI.locked){ $('#app').innerHTML=''; $('#ov').innerHTML=`<div class="lock">${vLock()}</div>`; setBars(); return }
   if(UI.ob>=0){
     $('#app').innerHTML='';
-    $('#ov').innerHTML=`<div class="ob">${MODE==='owner'?vOnboarding():vOnboardingPartner()}</div>`;
+    $('#ov').innerHTML=`<div class="ob">${NB?vOnboarding():vOnboardingWeb()}</div>`;
     setBars(); return;
   }
   const v={home:vHome, stats:vStats, costs:vCosts, accounts:vAccounts, settings:vSettings}[UI.view]();
-  const items = MODE==='owner'
-    ? [['home','home','Overzicht'],['stats','chart','Statistieken'],['costs','list','Kosten'],['accounts','card','Rekeningen'],['settings','gear','Instellingen']]
-    : [['home','home','Overzicht'],['stats','chart','Statistieken'],['costs','list','Kosten'],['settings','gear','Instellingen']];
+  const items=[['home','home','Overzicht'],['stats','chart','Statistieken'],['costs','list','Kosten'],['accounts','card','Rekeningen'],['settings','gear','Instellingen']];
   const nav=items.map(([k,i,l])=>`<button class="${UI.view===k?'on':''}" onclick="A.go('${k}')" aria-label="${l}">${ic(i)}</button>`).join('');
   $('#app').innerHTML=`<div class="wrap">${v}</div><nav class="nav">${nav}</nav>`;
   renderOv(); setBars();
@@ -979,28 +1057,45 @@ async function faceRegister(){
 
 /* ---------- actions ---------- */
 const A = {
-  async sendToPartner(){
-    const p=S.settings.partner, c=calc();
-    if(!S.costs.some(x=>x.split==='shared')){ toast('Er zijn nog geen gedeelde kosten'); return }
-    let code; try{ code=await packShare() }catch(e){ toast('Delen lukte niet'); return }
-    const url=(S.settings.share.url||'').replace(/#.*$/,'');
-    const text=`Hoi ${p}, de gezamenlijke vaste lasten zijn bijgewerkt. Jouw deel: ${fmt(c.partner)} per maand.\n\nUpdate voor Lasty:\n${url}#d=${code}\n\nHeb je Lasty al? Houd de link ingedrukt, kies Kopieer en tik in Lasty op Update plakken. Nog niet? Open de link in Safari en zet hem op je beginscherm.`;
-    bridge.share(text);
-    S.settings.share.lastHash=shareHash(); S.settings.share.lastSentAt=Date.now(); persist(); render();
+  async pairCreate(){
+    if(!crypto.subtle){ toast('Koppelen werkt hier niet'); return }
+    S.sync={id:b64u(rnd(18)), key:b64u(rnd(32)), role:'a', last:0}; SYNC.err=''; persist(true);
+    await doSync(); render();
+    A.sendPair();
   },
-  setShareUrl(v){ v=v.trim(); if(!/^https:\/\/.+/.test(v)){ toast('Het adres moet met https:// beginnen'); render(); return } if(!v.endsWith('/') && !/\.html?$/.test(v)) v+='/'; S.settings.share.url=v; persist(); toast('Adres opgeslagen') },
-  async pasteUpdate(){
+  sendPair(){
+    if(!S.sync) return;
+    const p=S.settings.partner;
+    bridge.share(`Hoi ${p}, koppel jouw Lasty met de mijne, dan blijven onze gezamenlijke vaste lasten vanzelf gelijk:\n\n${pairLink()}\n\nOpen de link in Safari en volg de stappen. Heb je Lasty al op je beginscherm? Kopieer dan de link en tik in Lasty op Koppellink plakken.`);
+  },
+  unpair(){ confirmBox('Ontkoppelen?', `Jullie gezamenlijke kosten blijven op deze telefoon staan, maar wijzigingen van ${S.settings.partner} komen niet meer binnen.`, 'Ontkoppelen', ()=>{ S.sync=null; persist(true); render(); toast('Ontkoppeld') }, true) },
+  async pairJoin(){
     let t='';
     try{ if(navigator.clipboard && navigator.clipboard.readText) t=await navigator.clipboard.readText() }catch(e){ t='' }
-    if(t && /d=[01]\.|^[01]\./.test(t.trim())){ await applyShare(t); return }
+    if(t && PAIR_RE.test(t)){ await joinWith(t); return }
     modalFn=null;
-    $('#md').innerHTML=`<div class="scrim" onclick="if(event.target===this)A.closeModal()"><div class="modal"><h4>Update plakken</h4>
-      <p>Kopieer de link die ${esc(S.settings.me)} stuurde en plak hem hieronder.</p>
+    $('#md').innerHTML=`<div class="scrim" onclick="if(event.target===this)A.closeModal()"><div class="modal"><h4>Koppellink plakken</h4>
+      <p>Plak hieronder de link die ${esc(S.settings.partner)} je stuurde.</p>
       <textarea class="paste" id="pastebox" placeholder="Plak hier de link"></textarea>
-      <button class="btn" onclick="A.pasteFromBox()">Bijwerken</button><button class="btn two mt" onclick="A.closeModal()">Annuleren</button></div></div>`;
+      <button class="btn" onclick="A.pasteFromBox()">Koppelen</button><button class="btn two mt" onclick="A.closeModal()">Annuleren</button></div></div>`;
   },
-  async pasteFromBox(){ const v=$('#pastebox').value; if(await applyShare(v)) A.closeModal() },
-  copyReceived(){ bridge.copy(location.href.split('#')[0]+'#d='+UI.received); toast('Gekopieerd. Open nu Lasty op je beginscherm') },
+  async pasteFromBox(){ const v=$('#pastebox').value; if(await joinWith(v)) A.closeModal() },
+  setShareUrl(v){ v=v.trim(); if(!/^https:\/\/.+/.test(v)){ toast('Het adres moet met https:// beginnen'); render(); return } if(!v.endsWith('/') && !/\.html?$/.test(v)) v+='/'; S.settings.share.url=v; persist(); toast('Adres opgeslagen') },
+  pickLogo(){
+    const i=document.createElement('input'); i.type='file'; i.accept='image/*';
+    i.onchange=()=>{
+      const f=i.files[0]; if(!f) return;
+      const img=new Image(), url=URL.createObjectURL(f);
+      img.onload=()=>{
+        const c=document.createElement('canvas'); c.width=c.height=96; const g=c.getContext('2d');
+        const s=Math.min(img.width,img.height), sx=(img.width-s)/2, sy=(img.height-s)/2;
+        g.drawImage(img, sx, sy, s, s, 0, 0, 96, 96); URL.revokeObjectURL(url);
+        D.logo=c.toDataURL('image/png'); renderOv();
+      };
+      img.src=url;
+    };
+    i.click();
+  },
   key(d){
     if(d==='del'){ UI.pin=UI.pin.slice(0,-1); A.dots(); return }
     if(UI.pin.length>=4) return;
@@ -1015,18 +1110,19 @@ const A = {
       else { UI.pin=''; A.dots(true) }
       return;
     }
-    if(UI.ob===1){ UI.pinFirst=pin; UI.pin=''; UI.ob=2; render(); return }
-    if(UI.ob===2){
-      if(pin!==UI.pinFirst){ UI.pin=''; UI.pinFirst=''; UI.ob=1; render(); A.dots(true); toast('Pincodes komen niet overeen'); return }
+    if(UI.ob===3){ UI.pinFirst=pin; UI.pin=''; UI.ob=4; render(); return }
+    if(UI.ob===4){
+      if(pin!==UI.pinFirst){ UI.pin=''; UI.pinFirst=''; UI.ob=3; render(); A.dots(true); toast('Pincodes komen niet overeen'); return }
       SEC.salt=uid(); SEC.pinHash=await hashPin(pin); saveSec(); UI.pin=''; UI.pinFirst='';
       if(UI.pinChange){ UI.pinChange=false; UI.ob=-1; render(); toast('Pincode gewijzigd'); return }
-      if(UI.faceAvail){ UI.ob=3; render() } else A.obFace(false);
+      if(UI.faceAvail){ UI.ob=5; render() } else A.obFace(false);
     }
   },
   async obFace(on){
     if(on && !(await faceRegister())) return;
-    S.settings.onboarded=true; UI.ob=-1; persist(); render();
+    S.settings.onboarded=true; S.settings.meSet=true; UI.ob=-1; persist(); render();
   },
+  obNamesWeb(){ const m=$('#ob_me').value.trim(), p=$('#ob_pa').value.trim(); if(m){ S.settings.me=m; S.settings.meSet=true } if(p) S.settings.partner=p; persist(); A.ob(3) },
   async toggleFace(){ if(SEC.faceId){ delete SEC.faceId; saveSec(); render(); return } if(await faceRegister()){ render(); toast('Face ID staat aan') } },
   async faceUnlock(){
     if(!SEC.faceId) return;
@@ -1035,7 +1131,7 @@ const A = {
       UI.locked=false; UI.pin=''; render();
     }catch(e){ toast('Face ID lukte niet, gebruik je pincode') }
   },
-  changePin(){ UI.pinChange=true; UI.pin=''; UI.ob=1; render() },
+  changePin(){ UI.pinChange=true; UI.pin=''; UI.ob=3; render() },
   cancelPin(){ UI.pinChange=false; UI.pin=''; UI.ob=-1; render() },
   wipe(){ confirmBox('Alles wissen?', 'Je gegevens, pincode en Face ID worden van deze iPhone verwijderd.', 'Wissen', ()=>{ try{ localStorage.removeItem(SKEY); localStorage.removeItem('lasty-sec') }catch(e){} location.replace(location.pathname) }, true) },
   go(v){ UI.view=v; UI.ov=[]; render(); window.scrollTo(0,0) },
@@ -1045,8 +1141,8 @@ const A = {
   ssel(i){ UI.ssel=i; const y=$('.bars').scrollLeft; render(); $('.bars').scrollLeft=y },
   filter(f){ UI.filter=f; $('#clist').innerHTML=costList(); document.querySelectorAll('.chips .chip').forEach((b,i)=>b.classList.toggle('on',['all','me','shared'][i]===f)) },
   search(q){ UI.q=q; $('#clist').innerHTML=costList() },
-  closeOv(){ UI.ov.pop(); D=null; const t=UI.ov[UI.ov.length-1]; if(t&&t.draft) D=t.draft; render() },
-  closeModal(){ $('#md').innerHTML=''; modalFn=null },
+  closeOv(){ UI.ov.pop(); D=null; const t=UI.ov[UI.ov.length-1]; if(t&&t.draft) D=t.draft; UI.dirty=false; render() },
+  closeModal(){ $('#md').innerHTML=''; modalFn=null; if(UI.dirty && !UI.ov.length){ UI.dirty=false; render() } },
   modalOk(){ const f=modalFn; A.closeModal(); if(f) f() },
   copy(t,msg){ bridge.copy(t); toast(msg) },
   accDetail(id){ pushOv({t:'accdetail', id}) },
@@ -1072,16 +1168,18 @@ const A = {
     if(!D.name.trim()){ toast('Geef de kostenpost een naam'); $('#f_name').focus(); return }
     if(cents==null){ $('#e_amt').textContent='Vul een geldig bedrag in, bijvoorbeeld 40,46'; return }
     if(!D.accountId){ toast('Kies een rekening'); return }
+    const old=S.costs.find(c=>c.id===D.id), now=Date.now();
+    if(old && old.split==='shared' && D.split!=='shared') S.tomb[D.id]=now;
     const rec={id:D.id, name:D.name.trim(), category:(D.category||'Overig').trim(), amountCents:cents, freq:D.freq, split:D.split,
-      sharePct:D.split==='shared'?D.sharePct:100, accountId:D.accountId, active:D.active, note:D.note||'', updatedAt:Date.now()};
+      sharePct:D.split==='shared'?D.sharePct:100, accountId:D.accountId, active:D.active, note:D.note||'', updatedAt:now};
     const i=S.costs.findIndex(c=>c.id===D.id);
     if(i>=0) S.costs[i]=rec; else S.costs.push(rec);
     persist(); UI.ov.pop(); D=null; render(); toast(i>=0?'Opgeslagen':'Kostenpost toegevoegd');
   },
   delCost(){
     const i=S.costs.findIndex(c=>c.id===D.id); if(i<0) return;
-    const [rem]=S.costs.splice(i,1); persist(); UI.ov.pop(); D=null; render();
-    toast(`${rem.name} verwijderd`, 'Ongedaan maken', ()=>{ S.costs.splice(i,0,rem); persist(); render() });
+    const [rem]=S.costs.splice(i,1); if(rem.split==='shared') S.tomb[rem.id]=Date.now(); persist(); UI.ov.pop(); D=null; render();
+    toast(`${rem.name} verwijderd`, 'Ongedaan maken', ()=>{ rem.updatedAt=Date.now()+1; S.costs.splice(i,0,rem); persist(); render() });
   },
   editIncome(id){
     const c=S.incomes.find(x=>x.id===id);
@@ -1105,7 +1203,7 @@ const A = {
   },
   editAccount(id){
     const a=S.accounts.find(x=>x.id===id);
-    D = a ? Object.assign({kind:'account'}, JSON.parse(JSON.stringify(a))) : {kind:'account', id:uid(), name:'', iban:'', bank:'other', type:'joint'};
+    D = a ? Object.assign({kind:'account', logo:''}, JSON.parse(JSON.stringify(a))) : {kind:'account', id:uid(), name:'', iban:'', bank:'other', type:'joint', logo:''};
     pushOv({t:'account', id:D.id, draft:D});
   },
   ibanCheck(silent){
@@ -1120,15 +1218,16 @@ const A = {
     const i=S.accounts.findIndex(a=>a.id===D.id);
     if(i>=0 && S.accounts[i].type!==D.type && S.costs.some(c=>c.accountId===D.id)){
       toast('Verplaats eerst de kostenposten van deze rekening'); return }
-    const rec={id:D.id, name:D.name.trim(), iban:v, bank:D.bank, type:D.type, updatedAt:Date.now()};
+    if(i>=0 && S.accounts[i].type==='joint' && D.type!=='joint') S.tomb[D.id]=Date.now();
+    const rec={id:D.id, name:D.name.trim(), iban:v, bank:D.bank, type:D.type, logo:D.logo||'', updatedAt:Date.now()};
     if(i>=0) S.accounts[i]=rec; else S.accounts.push(rec);
     persist(); UI.ov.pop(); D=null; const t=UI.ov[UI.ov.length-1]; if(t&&t.draft) D=t.draft; render(); toast('Rekening opgeslagen');
   },
   delAccount(){
     if(S.costs.some(c=>c.accountId===D.id)){ toast('Er staan nog kostenposten op deze rekening'); return }
     const i=S.accounts.findIndex(a=>a.id===D.id); if(i<0) return;
-    const [rem]=S.accounts.splice(i,1); persist(); UI.ov=[]; D=null; render();
-    toast(`${rem.name} verwijderd`, 'Ongedaan maken', ()=>{ S.accounts.splice(i,0,rem); persist(); render() });
+    const [rem]=S.accounts.splice(i,1); if(rem.type==='joint') S.tomb[rem.id]=Date.now(); persist(); UI.ov=[]; D=null; render();
+    toast(`${rem.name} verwijderd`, 'Ongedaan maken', ()=>{ rem.updatedAt=Date.now()+1; S.accounts.splice(i,0,rem); persist(); render() });
   },
   share(){
     const c=calc(), p=S.settings.partner;
@@ -1138,7 +1237,7 @@ const A = {
     const text=`Hoi ${p}, dit is jouw deel van de vaste lasten per maand:\n\n${lines.join('\n\n')}\n\nTotaal: ${fmt(c.partner)}`;
     bridge.share(text);
   },
-  setName(k,v){ v=v.trim(); if(!v) { render(); return } S.settings[k]=v; persist(); toast('Naam opgeslagen') },
+  setName(k,v){ v=v.trim(); if(!v) { render(); return } S.settings[k]=v; if(k==='me') S.settings.meSet=true; persist(); toast('Naam opgeslagen') },
   toggleReminder(){
     const r=S.settings.reminder;
     if(r.enabled){ r.enabled=false; persist(); render(); return }
@@ -1183,6 +1282,7 @@ window.A=A;
 window.goBack = function(){
   if($('#md').innerHTML){ A.closeModal(); return true }
   if(UI.locked) return false;
+  if(UI.pinChange){ A.cancelPin(); return true }
   if(UI.ob>0){ UI.pin=''; A.ob(UI.ob-1); return true }
   if(UI.ob===0) return false;
   if(UI.ov.length){ A.closeOv(); return true }
@@ -1203,23 +1303,34 @@ window.setDark = function(on){ document.documentElement.classList.toggle('dark',
 document.documentElement.classList.toggle('dark', !!bridge.isDark());
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e=>{ if(!NB) window.setDark(e.matches) }) }catch(e){}
 (async function start(){
-  if(MODE==='partner'){
-    const m=location.hash.match(/d=([01]\.[A-Za-z0-9_-]+)/);
-    if(m){ UI.received=m[1]; await applyShare(location.hash, true); try{ history.replaceState(null,'',location.pathname+location.search) }catch(e){} }
+  const pm=location.hash.match(PAIR_RE);
+  if(pm){ UI.pendingPair=pm[1]+'.'+pm[2]; try{ history.replaceState(null,'',location.pathname+location.search) }catch(e){} }
+  if(WEB){
     try{ UI.faceAvail = !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()) }catch(e){}
     let hiddenAt=0;
     document.addEventListener('visibilitychange', ()=>{
-      if(document.hidden) hiddenAt=Date.now();
-      else if(SEC.pinHash && hiddenAt && Date.now()-hiddenAt>30000 && !UI.locked && UI.ob<0){ UI.locked=true; UI.pin=''; render() }
+      if(document.hidden){ hiddenAt=Date.now(); return }
+      if(SEC.pinHash && hiddenAt && Date.now()-hiddenAt>30000 && !UI.locked && UI.ob<0){ UI.locked=true; UI.pin=''; render() }
+      doSync();
     });
-    if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+    if('serviceWorker' in navigator && location.protocol==='https:'){
+      navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{});
+      let reloaded=false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(!reloaded && !UI.ov.length && UI.ob<0){ reloaded=true; location.reload() } });
+    }
   } else {
-    bridge.setLock(!!S.settings.lock); syncReminder(); bridge.sharePending(sharePending());
+    bridge.setLock(!!S.settings.lock); syncReminder(); bridge.sharePending(false);
   }
   render();
-  if(MODE==='owner' && bridge.takeAction()==='share') setTimeout(()=>A.sendToPartner(), 400);
+  if(UI.pendingPair && !(WEB && IS_IOS && !STANDALONE)){
+    const code=UI.pendingPair; UI.pendingPair='';
+    if(!S.sync){ await joinWith('#p='+code); if(UI.ob===0) A.ob(1) }
+  }
+  doSync();
+  setInterval(()=>{ if(!document.hidden) doSync() }, 120000);
 })();
-window.onNativeAction = a => { if(a==='share') A.sendToPartner() };
+window.onResumeApp = () => doSync();
+window.onNativeAction = () => {};
 </script>
 </body>
 </html>
