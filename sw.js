@@ -1,6 +1,6 @@
 // Lasty: werkt offline en werkt zichzelf bij. Eerst netwerk (nieuwe versie), anders cache.
 // Alleen eigen bestanden; verzoeken naar de sync-server gaan er altijd direct langs.
-const CACHE = 'lasty-v1.3.1';
+const CACHE = 'lasty-v1.4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
