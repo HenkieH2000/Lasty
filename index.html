@@ -386,7 +386,7 @@ function presets(){
   const me='me', sh='shared';
   return {
     schema:1,
-    settings:{me:'Henk', partner:'Melanie', onboarded:false, reminder:{enabled:false, day:25, hour:9}, lock:false, lockDefault:0, share:{url:'https://henkieh2000.github.io/Lastly/', lastHash:'', lastSentAt:0}},
+    settings:{me:'Henk', partner:'Melanie', onboarded:false, reminder:{enabled:false, day:25, hour:9}, lock:false, lockDefault:0, share:{url:'https://henkieh2000.github.io/lasty/', lastHash:'', lastSentAt:0}},
     accounts:[ap,ar,av],
     costs:[
       C('Auto','Autoverzekering',40.46,me,ap), C('Auto','Autobelasting',75.33,me,ap), C('Auto','Benzine',200,me,ap), C('Auto','Parkeren',32.90,me,ap),
@@ -413,7 +413,7 @@ function normalize(d){
   d.settings=Object.assign({}, p.settings, d.settings||{});
   d.settings.reminder=Object.assign({}, p.settings.reminder, d.settings.reminder||{});
   d.settings.share=Object.assign({}, p.settings.share, d.settings.share||{});
-  if(d.settings.share.url==='https://henkieh2000.github.io/lasty/') d.settings.share.url=p.settings.share.url;
+  if(/^https:\/\/henkieh2000\.github\.io\/(lasty|Lastly)\/?$/i.test(d.settings.share.url)) d.settings.share.url=p.settings.share.url;
   d.incomes=Array.isArray(d.incomes)?d.incomes:[];
   d.schema=1; return d;
 }
