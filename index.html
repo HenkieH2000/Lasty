@@ -288,7 +288,7 @@ const bridge = {
     const i=document.createElement('input'); i.type='file'; i.accept='application/json,.json';
     i.onchange=()=>{ const f=i.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>window.onImport(String(r.result)); r.readAsText(f) }; i.click();
   },
-  version(){ try{ return NB ? NB.version() : '1.3' }catch(e){ return '' } },
+  version(){ try{ return NB ? NB.version() : '1.3.1' }catch(e){ return '' } },
   sharePending(on){ if(NB) try{ NB.setSharePending(!!on) }catch(e){} },
   takeAction(){ try{ return NB && NB.takeAction ? NB.takeAction() : '' }catch(e){ return '' } }
 };
